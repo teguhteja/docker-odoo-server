@@ -1,0 +1,66 @@
+services:
+  # PostgreSQL service
+  postgres:
+    image: postgres:16
+    container_name: postgres16
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+      - POSTGRES_DB=postgres
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - odoo-network
+    restart: always
+
+  # Odoo service
+  odoo:
+    image: odoo:17.0
+    container_name: odoo17
+    depends_on:
+      - postgres
+    ports:
+      - "8069:8069"
+      - "8072:8072"  # For longpolling
+    environment:
+      - HOST=postgres
+      - USER=odoo
+      - PASSWORD=odoo
+    volumes:
+      - odoo-web-data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons
+      - ./config:/etc/odoo
+    entrypoint: "./my-entrypoint.sh"
+    networks:
+      - odoo-network
+    restart: always
+
+  # NGINX service
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    depends_on:
+      - odoo
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    networks:
+      - odoo-network
+    restart: always
+
+volumes:
+  odoo-web-data:
+  odoo-db-data:
+
+networks:
+  odoo-network:
+    driver: bridge
